@@ -1,6 +1,11 @@
 #include <driver/ledc.h>
 #include <WiFi.h>
 #include <PubSubClient.h>
+#include <DHT.h>
+
+#define DHTPIN 27
+#define DHTTYPE DHT11
+
 
 const char* ssid = "IZZI-A8A4";
 // const char* ssid = "DESKTOP-KALDOS7 3748";
@@ -12,6 +17,7 @@ const char* mqtt_server = "3.83.35.123";
 
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
+DHT dht(DHTPIN, DHTTYPE);
 
 // ===================================================
 // STATE VARIABLES
@@ -222,6 +228,7 @@ void setup() {
 
   setup_wifi();
   setup_mqtt();
+  dht.begin();
 }
 
 // ===================================================
@@ -262,7 +269,6 @@ void loop() {
   }
 
   for (int i = 0; i < motorsCount; i++) {
-    Serial.println(digitalRead(motors[3].pin));
     if ((digitalRead(motors[i].pin) == HIGH) && (*motors[i].stateVar) && (!(*buzzer.stateVar))) {
 
       if (millis() - lastPressMotors[i] > debounceDelay) {
@@ -279,6 +285,35 @@ void loop() {
         mqttClient.publish(topic.c_str(), payload.c_str());
         lastPressButtons[i] = millis();
       }
+    }
+  }
+// ===================================================
+// DHT11 READ AND PUBLISH EVERY 5 SECONDS
+// ===================================================
+static unsigned long lastDHT = 0;
+
+  if (millis() - lastDHT >= 5000) {
+    lastDHT = millis();
+
+    float h = dht.readHumidity();
+    float t = dht.readTemperature();
+
+    if (!isnan(h) && !isnan(t)) {
+
+        char humStr[10];
+        char tempStr[10];
+        dtostrf(h, 1, 0, humStr);
+        dtostrf(t, 1, 0, tempStr);
+
+        mqttClient.publish("smarthome/humidity/status", humStr);
+        mqttClient.publish("smarthome/temperature/status", tempStr);
+
+         Serial.print("Humidity: ");
+        Serial.println(humStr);
+        Serial.print("Temperature: ");
+        Serial.println(tempStr);
+    } else {
+      Serial.println("Failed to read DHT11");
     }
   }
 }
