@@ -2,15 +2,22 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <DHT.h>
+#include <ESP32Servo.h>
 
 #define DHTPIN 27
 #define DHTTYPE DHT11
 
 
-const char* ssid = "IZZI-A8A4";
-// const char* ssid = "DESKTOP-KALDOS7 3748";
-const char* password = "nPTyfhpEmALRLF9tcc";
-// const char* password = "9=4p72L3";
+// const char* ssid = "IZZI-A8A4";
+const char* ssid = "DESKTOP-KALDOS7 3748";
+// const char* ssid = "Redmi Note 10 Pro";
+// const char* ssid = "UTMA-STAFF";
+// const char* password = "nPTyfhpEmALRLF9tcc";
+const char* password = "9=4p72L3";
+// const char* password = "CarlosGalindo";
+// const char* password = "METRO2025@";
+
+
 
 // const char* mqtt_server = "89.116.191.188";
 const char* mqtt_server = "3.83.35.123";
@@ -18,6 +25,7 @@ const char* mqtt_server = "3.83.35.123";
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
 DHT dht(DHTPIN, DHTTYPE);
+Servo myServo;
 
 // ===================================================
 // STATE VARIABLES
@@ -37,6 +45,8 @@ bool window_1_status = false;
 bool window_2_status = false;
 
 bool buzzer_status = false;
+
+bool servo_status = false;
 
 // ===================================================
 // OUTPUT/INPUT STRUCTURES
@@ -77,6 +87,8 @@ outputItem motors[] = {
 };
 
 outputItem buzzer = { "buzzer", 25, &buzzer_status };
+
+outputItem servoItem = { "servo", 17, &servo_status };
 
 int ledButtonsCount = sizeof(ledButtons) / sizeof(ledButtons[0]);
 int ledsCount = sizeof(leds) / sizeof(leds[0]);
@@ -159,6 +171,22 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
     Serial.printf("BUZZER %s SET => %d\n", buzzer.name, newState);
     return;
   }
+
+  if (String(topic) == "smarthome/servo/set") {
+    bool newState = (message == "1");
+
+    *servoItem.stateVar = newState;
+
+    if (newState) {
+      myServo.write(180);
+    } else {
+      myServo.write(0);
+    }
+
+    mqttClient.publish("smarthome/servo/status", newState ? "1" : "0");
+    Serial.printf("SERVO SET => %d\n", newState);
+    return;
+  }
 }
 
 // ===================================================
@@ -196,6 +224,9 @@ void setup_mqtt() {
       Serial.print("Subscribed: ");
       Serial.println(topic);
 
+      mqttClient.subscribe("smarthome/servo/set");
+      Serial.println("Subscribed: smarthome/servo/set");
+
     } else {
       Serial.print("FAILED. rc=");
       Serial.print(mqttClient.state());
@@ -225,6 +256,9 @@ void setup() {
   }
 
   pinMode(buzzer.pin, OUTPUT);
+
+  myServo.attach(servoItem.pin, 500, 2400);
+  myServo.write(0);
 
   setup_wifi();
   setup_mqtt();
@@ -308,10 +342,10 @@ static unsigned long lastDHT = 0;
         mqttClient.publish("smarthome/humidity/status", humStr);
         mqttClient.publish("smarthome/temperature/status", tempStr);
 
-         Serial.print("Humidity: ");
-        Serial.println(humStr);
-        Serial.print("Temperature: ");
-        Serial.println(tempStr);
+        //  Serial.print("Humidity: ");
+        // Serial.println(humStr);
+        // Serial.print("Temperature: ");
+        // Serial.println(tempStr);
     } else {
       Serial.println("Failed to read DHT11");
     }
